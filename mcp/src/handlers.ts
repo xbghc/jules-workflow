@@ -101,3 +101,9 @@ export async function handleGetSession(args: { sessionId: string }) {
     prUrl: prUrl || null,
   };
 }
+
+export async function handleDeleteSession(args: { sessionId: string }) {
+  const { sessionId } = args;
+  await julesRequest(`/sessions/${sessionId}`, "DELETE");
+  return { success: true, message: "Session deleted successfully" };
+}
