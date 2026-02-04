@@ -9,6 +9,7 @@ import {
   handleGetSession,
   handleSendMessage,
   handleApprovePlan,
+  handleDeleteSession,
 } from "./handlers.js";
 
 const server = new McpServer({ name: "jules-mcp", version: "1.0.0" });
@@ -83,6 +84,20 @@ server.registerTool(
   },
   async (args) => {
     const result = await handleApprovePlan(args);
+    return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.registerTool(
+  "jules_delete_session",
+  {
+    description: "Delete a Jules session",
+    inputSchema: {
+      sessionId: z.string().describe("The session ID to delete"),
+    },
+  },
+  async (args) => {
+    const result = await handleDeleteSession(args);
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   }
 );

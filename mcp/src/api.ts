@@ -50,5 +50,6 @@ export async function julesRequest(
     throw new Error(`Jules API error: ${response.status} - ${error}`);
   }
 
-  return response.json();
+  const text = await response.text();
+  return text ? JSON.parse(text) : {};
 }
