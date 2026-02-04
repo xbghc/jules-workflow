@@ -7,6 +7,8 @@ import {
   handleCreateSession,
   handleListSessions,
   handleGetSession,
+  handleSendMessage,
+  handleApprovePlan,
 } from "./handlers.js";
 
 const server = new McpServer({ name: "jules-mcp", version: "1.0.0" });
@@ -52,6 +54,35 @@ server.registerTool(
   },
   async (args) => {
     const result = await handleGetSession(args);
+    return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.registerTool(
+  "jules_send_message",
+  {
+    description: "Send a message to an active Jules session to provide feedback or additional instructions",
+    inputSchema: {
+      sessionId: z.string().describe("The session ID"),
+      message: z.string().describe("The message to send"),
+    },
+  },
+  async (args) => {
+    const result = await handleSendMessage(args);
+    return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.registerTool(
+  "jules_approve_plan",
+  {
+    description: "Approve a pending plan for a Jules session (when requirePlanApproval was set to true)",
+    inputSchema: {
+      sessionId: z.string().describe("The session ID"),
+    },
+  },
+  async (args) => {
+    const result = await handleApprovePlan(args);
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   }
 );

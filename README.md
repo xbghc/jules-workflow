@@ -45,6 +45,8 @@ export GOOGLE_JULES_API_KEY="your-api-key"
 | `jules_create_session` | 创建 Jules 会话 |
 | `jules_list_sessions` | 列出会话 |
 | `jules_get_session` | 获取会话状态和 PR URL |
+| `jules_send_message` | 发送消息给会话 |
+| `jules_approve_plan` | 批准会话计划 |
 
 合并 PR 使用 `gh pr merge <url> --merge && git pull`
 

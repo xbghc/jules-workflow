@@ -13,6 +13,8 @@ allowed-tools:
   - mcp__jules__jules_create_session
   - mcp__jules__jules_list_sessions
   - mcp__jules__jules_get_session
+  - mcp__jules__jules_send_message
+  - mcp__jules__jules_approve_plan
 ---
 
 # 使用 Jules 进行开发
@@ -136,6 +138,8 @@ git add . && git commit -m "..." && git push
 | `jules_create_session` | 创建会话 |
 | `jules_list_sessions` | 列出会话 |
 | `jules_get_session` | 获取会话状态和 PR URL |
+| `jules_send_message` | 发送消息给会话 |
+| `jules_approve_plan` | 批准会话计划 |
 
 ## 合并 PR
 

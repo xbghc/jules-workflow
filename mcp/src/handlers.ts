@@ -1,5 +1,22 @@
 import { julesRequest, getRepoInfo } from "./api.js";
 
+export async function handleSendMessage(args: {
+  sessionId: string;
+  message: string;
+}) {
+  const { sessionId, message } = args;
+  await julesRequest(`/sessions/${sessionId}:sendMessage`, "POST", {
+    prompt: message,
+  });
+  return { success: true, message: "Message sent successfully" };
+}
+
+export async function handleApprovePlan(args: { sessionId: string }) {
+  const { sessionId } = args;
+  await julesRequest(`/sessions/${sessionId}:approvePlan`, "POST", {});
+  return { success: true, message: "Plan approved successfully" };
+}
+
 export async function handleCreateSession(args: {
   prompt: string;
   title: string;
