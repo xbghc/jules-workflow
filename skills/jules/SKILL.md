@@ -143,11 +143,28 @@ git add . && git commit -m "..." && git push
 | `jules_approve_plan` | 批准会话计划 |
 | `jules_delete_session` | 删除会话 |
 
+## 等待策略
+
+创建 Jules 会话后，每 30 秒调用 `jules_get_session` 检查状态，根据状态决定下一步：
+
+| 状态 | 操作 |
+|------|------|
+| `QUEUED` / `PLANNING` / `IN_PROGRESS` | 继续等待，30 秒后再次查询 |
+| `COMPLETED` | 获取 PR URL，使用 `gh pr merge` 合并 |
+| `FAILED` | 报告错误，终止流程 |
+| `AWAITING_PLAN_APPROVAL` | 使用 `jules_approve_plan` 批准计划 |
+| `AWAITING_USER_FEEDBACK` | 使用 `jules_send_message` 回复 |
+
+### 并行等待
+
+多个会话可同时创建，在同一条消息中并行调用多个 `jules_get_session` 轮询。
+
 ## 合并 PR
 
-会话完成后使用 `gh` 命令合并 PR：
+会话完成后，先标记 PR 为 ready（Jules 创建的是 draft PR），再合并：
 
 ```bash
-gh pr merge <pr_url> --merge   # 或 --squash, --rebase
+gh pr ready <pr_url>
+gh pr merge <pr_url> --merge
 git pull
 ```
