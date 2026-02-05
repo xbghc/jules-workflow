@@ -1,0 +1,9 @@
+{
+  "jules": {
+    "command": "npx",
+    "args": ["jules-mcp"],
+    "env": {
+      "GOOGLE_JULES_API_KEY": "${GOOGLE_JULES_API_KEY}"
+    }
+  }
+}

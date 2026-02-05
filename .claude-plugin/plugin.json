@@ -4,11 +4,5 @@
   "version": "2.0.0",
   "author": {
     "name": "Coo"
-  },
-  "mcpServers": {
-    "jules": {
-      "command": "node",
-      "args": ["mcp/dist/index.js"]
-    }
   }
 }
