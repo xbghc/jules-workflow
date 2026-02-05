@@ -9,7 +9,10 @@
   "plugins": [
     {
       "name": "jules-workflow",
-      "source": ".",
+      "source": {
+        "source": "github",
+        "repo": "xbghc/jules-workflow"
+      },
       "description": "Use Jules for development with MCP tools"
     }
   ]
