@@ -1,0 +1,16 @@
+{
+  "name": "jules-workflow",
+  "owner": {
+    "name": "Coo"
+  },
+  "metadata": {
+    "description": "Jules development workflow plugin for Claude Code"
+  },
+  "plugins": [
+    {
+      "name": "jules-workflow",
+      "source": ".",
+      "description": "Use Jules for development with MCP tools"
+    }
+  ]
+}

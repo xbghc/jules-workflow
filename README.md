@@ -5,7 +5,8 @@
 ## 安装
 
 ```bash
-claude plugin install xbghc/jules-workflow
+/plugin marketplace add xbghc/jules-workflow
+/plugin install jules-workflow@jules-workflow
 ```
 
 需要设置环境变量 `GOOGLE_JULES_API_KEY`，从 https://jules.google/settings 获取。
@@ -57,7 +58,8 @@ claude plugin install xbghc/jules-workflow
 ```
 jules-workflow/
 ├── .claude-plugin/
-│   └── plugin.json       # 插件配置
+│   ├── plugin.json       # 插件配置
+│   └── marketplace.json  # 市场配置
 ├── skills/
 │   └── jules/
 │       └── SKILL.md      # 使用指南 + 命令

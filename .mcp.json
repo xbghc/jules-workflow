@@ -1,9 +1,11 @@
 {
-  "jules": {
-    "command": "npx",
-    "args": ["@xbghc/jules-mcp"],
-    "env": {
-      "GOOGLE_JULES_API_KEY": "${GOOGLE_JULES_API_KEY}"
+  "mcpServers": {
+    "jules": {
+      "command": "npx",
+      "args": ["@xbghc/jules-mcp"],
+      "env": {
+        "GOOGLE_JULES_API_KEY": "${GOOGLE_JULES_API_KEY}"
+      }
     }
   }
 }
