@@ -15,6 +15,7 @@ allowed-tools:
   - mcp__jules__jules_get_session
   - mcp__jules__jules_send_message
   - mcp__jules__jules_approve_plan
+  - mcp__jules__jules_delete_session
 ---
 
 # 使用 Jules 进行开发
@@ -140,6 +141,7 @@ git add . && git commit -m "..." && git push
 | `jules_get_session` | 获取会话状态和 PR URL |
 | `jules_send_message` | 发送消息给会话 |
 | `jules_approve_plan` | 批准会话计划 |
+| `jules_delete_session` | 删除会话 |
 
 ## 合并 PR
 
