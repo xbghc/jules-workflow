@@ -161,10 +161,8 @@ git add . && git commit -m "..." && git push
 
 ## 合并 PR
 
-会话完成后，先标记 PR 为 ready（Jules 创建的是 draft PR），再合并：
+会话完成后合并 PR（无论是否为 Draft PR，统一先 ready 再 merge）：
 
 ```bash
-gh pr ready <pr_url>
-gh pr merge <pr_url> --merge
-git pull
+gh pr ready <pr_url> && gh pr merge <pr_url> --merge && git pull
 ```
