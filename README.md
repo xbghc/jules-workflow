@@ -5,20 +5,10 @@
 ## 安装
 
 ```bash
-# 安装 MCP 依赖
-cd mcp && npm install && npm run build
-
-# 添加到 Claude 插件目录
-claude --plugin-dir /path/to/jules-workflow
+claude plugin install xbghc/jules-workflow
 ```
 
-## 环境变量
-
-```bash
-export GOOGLE_JULES_API_KEY="your-api-key"
-```
-
-从 https://jules.google/settings 获取 API 密钥。
+需要设置环境变量 `GOOGLE_JULES_API_KEY`，从 https://jules.google/settings 获取。
 
 ## 使用
 
@@ -77,24 +67,6 @@ jules-workflow/
 │   └── src/
 │       └── index.ts      # MCP server
 └── README.md
-```
-
-## MCP 配置
-
-在 Claude 配置中添加:
-
-```json
-{
-  "mcpServers": {
-    "jules": {
-      "command": "node",
-      "args": ["/path/to/jules-workflow/mcp/dist/index.js"],
-      "env": {
-        "GOOGLE_JULES_API_KEY": "your-api-key"
-      }
-    }
-  }
-}
 ```
 
 ## License
