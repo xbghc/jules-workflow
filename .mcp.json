@@ -1,7 +1,7 @@
 {
   "jules": {
     "command": "npx",
-    "args": ["jules-mcp"],
+    "args": ["@xbghc/jules-mcp"],
     "env": {
       "GOOGLE_JULES_API_KEY": "${GOOGLE_JULES_API_KEY}"
     }

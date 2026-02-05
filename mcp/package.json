@@ -1,11 +1,14 @@
 {
-  "name": "jules-mcp",
+  "name": "@xbghc/jules-mcp",
   "version": "1.0.0",
   "description": "MCP server for Jules API operations",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
     "jules-mcp": "dist/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "files": [
     "dist"
