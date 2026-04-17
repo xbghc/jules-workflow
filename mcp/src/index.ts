@@ -7,6 +7,7 @@ import {
   handleCreateSession,
   handleListSessions,
   handleGetSession,
+  handleWaitSession,
   handleSendMessage,
   handleApprovePlan,
   handleDeleteSession,
@@ -55,6 +56,22 @@ server.registerTool(
   },
   async (args) => {
     const result = await handleListSessions(args);
+    return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+
+server.registerTool(
+  "jules_wait_session",
+  {
+    description: "Wait for a Jules session to complete. Polls every 5 minutes until a terminal or interactive state is reached.",
+    inputSchema: {
+      sessionId: z.string().describe("The session ID to wait for"),
+      timeoutMinutes: z.number().optional().describe("Maximum time to wait in minutes. Defaults to infinite."),
+    },
+  },
+  async (args) => {
+    const result = await handleWaitSession(args);
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   }
 );
