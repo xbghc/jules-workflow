@@ -111,8 +111,14 @@ export async function handleDeleteSession(args: { sessionId: string }) {
 export async function handleWaitSession(args: {
   sessionId: string;
   timeoutMinutes?: number;
+  onPoll?: (snapshot: {
+    id: string;
+    title: string;
+    state: string;
+    url: string;
+  }) => void;
 }) {
-  const { sessionId, timeoutMinutes } = args;
+  const { sessionId, timeoutMinutes, onPoll } = args;
   const timeoutMs = timeoutMinutes ? timeoutMinutes * 60 * 1000 : Infinity;
   const startTime = Date.now();
   const pollIntervalMs = 5 * 60 * 1000; // 5 minutes
@@ -131,6 +137,13 @@ export async function handleWaitSession(args: {
         };
       }>;
     };
+
+    onPoll?.({
+      id: session.id,
+      title: session.title,
+      state: session.state,
+      url: session.url,
+    });
 
     const terminalStates = [
       "COMPLETED",
@@ -151,30 +164,34 @@ export async function handleWaitSession(args: {
     }
 
     if (Date.now() - startTime + pollIntervalMs > timeoutMs) {
-      // Sleep for remaining time then check once more, or just return now
       const remainingMs = timeoutMs - (Date.now() - startTime);
       if (remainingMs > 0) {
-          await new Promise((resolve) => setTimeout(resolve, remainingMs));
-          const finalResult = await julesRequest(`/sessions/${sessionId}`);
-          const finalSession = finalResult as typeof session;
-          return {
-              id: finalSession.id,
-              title: finalSession.title,
-              state: finalSession.state,
-              url: finalSession.url,
-              prUrl: finalSession.outputs?.[0]?.pullRequest?.url || null,
-              message: `Wait timeout exceeded (${timeoutMinutes} minutes). Current state: ${finalSession.state}`,
-          };
-      } else {
-          return {
-            id: session.id,
-            title: session.title,
-            state: session.state,
-            url: session.url,
-            prUrl: session.outputs?.[0]?.pullRequest?.url || null,
-            message: `Wait timeout exceeded (${timeoutMinutes} minutes). Current state: ${session.state}`,
-          };
+        await new Promise((resolve) => setTimeout(resolve, remainingMs));
+        const finalResult = await julesRequest(`/sessions/${sessionId}`);
+        const finalSession = finalResult as typeof session;
+        onPoll?.({
+          id: finalSession.id,
+          title: finalSession.title,
+          state: finalSession.state,
+          url: finalSession.url,
+        });
+        return {
+          id: finalSession.id,
+          title: finalSession.title,
+          state: finalSession.state,
+          url: finalSession.url,
+          prUrl: finalSession.outputs?.[0]?.pullRequest?.url || null,
+          message: `Wait timeout exceeded (${timeoutMinutes} minutes). Current state: ${finalSession.state}`,
+        };
       }
+      return {
+        id: session.id,
+        title: session.title,
+        state: session.state,
+        url: session.url,
+        prUrl: session.outputs?.[0]?.pullRequest?.url || null,
+        message: `Wait timeout exceeded (${timeoutMinutes} minutes). Current state: ${session.state}`,
+      };
     }
 
     await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));

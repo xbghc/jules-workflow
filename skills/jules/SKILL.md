@@ -10,18 +10,13 @@ allowed-tools:
   - Bash
   - Write
   - Edit
-  - mcp__jules__jules_create_session
-  - mcp__jules__jules_list_sessions
-  - mcp__jules__jules_get_session
-  - mcp__jules__jules_wait_session
-  - mcp__jules__jules_send_message
-  - mcp__jules__jules_approve_plan
-  - mcp__jules__jules_delete_session
 ---
 
 # 使用 Jules 进行开发
 
 Jules 是 Google 的 AI 编程代理，可以在独立的远程会话中执行编码任务，完成后自动创建 PR。
+
+通过 `@xbghc/jules-cli` 这个 CLI 操作 Jules。推荐全局安装：`npm i -g @xbghc/jules-cli`，或按需使用 `npx -y @xbghc/jules-cli <cmd>`。
 
 ## 何时使用 Jules
 
@@ -93,7 +88,7 @@ Vue 3 + TypeScript 项目，使用 Pinia 状态管理。
 1. 本地创建共享类型/接口
 2. git push 到远程（Jules 只能访问远程代码）
 3. 并行创建多个 Jules 会话
-4. 等待所有会话完成
+4. 分别在后台等待每个会话完成
 5. 合并所有 PR
 6. 运行测试验证
 ```
@@ -131,38 +126,50 @@ git add . && git commit -m "..." && git push
 - 明确指出相关文件和依赖
 - 给出具体的文件路径
 
-## MCP Tools
+## CLI 命令
 
-使用 MCP 提供的工具操作 Jules：
+使用 `jules` CLI 操作 Jules。所有命令的最终结果以 JSON 输出到 stdout；`wait` 期间每 5 分钟在 stderr 打印一行状态。
 
-| 工具 | 功能 |
+| 命令 | 功能 |
 |------|------|
-| `jules_create_session` | 创建会话 |
-| `jules_list_sessions` | 列出会话 |
-| `jules_get_session` | 获取会话状态和 PR URL |
-| `jules_wait_session` | 阻塞等待会话完成（内部每5分钟轮询） |
-| `jules_send_message` | 发送消息给会话 |
-| `jules_approve_plan` | 批准会话计划 |
-| `jules_delete_session` | 删除会话 |
+| `jules create --prompt <p> --title <t> [--source <s>] [--branch <b>]` | 创建会话 |
+| `jules list [--page-size <n>]` | 列出会话 |
+| `jules get <sessionId>` | 获取会话状态和 PR URL |
+| `jules wait <sessionId> [--timeout-minutes <n>]` | 阻塞等待会话到达终止态 |
+| `jules send <sessionId> <message>` | 发送消息给会话 |
+| `jules approve <sessionId>` | 批准会话计划 |
+| `jules delete <sessionId>` | 删除会话 |
+
+创建会话示例：
+
+```bash
+jules create --prompt "$(cat prompt.md)" --title "实现用户管理模块"
+```
 
 ## 等待策略
 
-创建 Jules 会话后，使用 `jules_wait_session` 工具等待会话完成。
+创建会话后，用 `Bash` 以 `run_in_background: true` 运行 `jules wait`：
 
-**重要提示：** Jules 任务执行可能需要很长时间（甚至长达一个小时），`jules_wait_session` 内部会自动每 5 分钟查询一次状态直到完成。你需要耐心等待工具返回（或根据情况指定 `timeoutMinutes`）。
+```
+Bash(command="jules wait <sessionId> --timeout-minutes 120", run_in_background: true)
+```
 
-工具返回后，根据返回状态决定下一步：
+CLI 每 5 分钟向 stderr 输出一行当前状态，进程在到达终止态（或超时）时退出。Claude 会在进程退出时自动收到通知，然后从 stdout 读取最终 JSON。
+
+**相对原 MCP `jules_wait_session` 的优势**：后台等待不占用 Claude 的上下文窗口，也不阻塞工具调用；同时支持同时跑多个会话的并行等待。
+
+进程退出后，根据 JSON 里的 `state` 字段决定下一步：
 
 | 状态 | 操作 |
 |------|------|
 | `COMPLETED` | 获取 PR URL，使用 `gh pr merge` 合并 |
 | `FAILED` | 报告错误，终止流程 |
-| `AWAITING_PLAN_APPROVAL` | 使用 `jules_approve_plan` 批准计划 |
-| `AWAITING_USER_FEEDBACK` | 使用 `jules_send_message` 回复 |
+| `AWAITING_PLAN_APPROVAL` | 运行 `jules approve <sessionId>` |
+| `AWAITING_USER_FEEDBACK` | 运行 `jules send <sessionId> "..."` |
 
 ### 并行等待
 
-多个会话可同时创建，在同一条消息中并行调用多个 `jules_wait_session` 等待。
+多个会话各起一个后台 `jules wait`（每个单独的 `Bash` 调用，`run_in_background: true`），任何一个完成都会单独通知。
 
 ## 合并 PR
 
