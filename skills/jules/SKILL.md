@@ -3,178 +3,121 @@ name: jules
 description: 使用 Jules 进行开发。委托编码任务给 Jules 代理执行。
 argument-hint: <任务描述>
 allowed-tools:
-  - Task
+  - Bash
   - Read
   - Grep
   - Glob
-  - Bash
-  - Write
-  - Edit
 ---
 
 # 使用 Jules 进行开发
 
-Jules 是 Google 的 AI 编程代理，可以在独立的远程会话中执行编码任务，完成后自动创建 PR。
+Jules 是 Google 的异步编码 agent（基于 Gemini），在云端 VM 里执行任务、跑测试，完成后自动开 PR。
 
-通过 `@xbghc/jules-cli` 这个 CLI 操作 Jules。推荐全局安装：`npm i -g @xbghc/jules-cli`，或按需使用 `npx -y @xbghc/jules-cli <cmd>`。
+推荐全局安装：`npm i -g @xbghc/jules-cli`；或按需 `npx -y @xbghc/jules-cli <cmd>`。所有命令 stdout 输出 JSON，失败时 exit code ≠ 0、错误写入 stderr。
 
-## 何时使用 Jules
+## 何时委托给 Jules
 
 | 适合 Jules | 本地执行更好 |
 |------------|-------------|
 | 多文件修改 | 单文件创建 |
-| 功能实现 | 配置/设置 |
-| 重构任务 | 小编辑 (<50 行) |
-| 复杂逻辑 | 简单、可预测 |
-| 可能需要调试 | 一次完成 |
+| 功能实现、重构 | 配置/小编辑 (<50 行) |
+| 复杂逻辑、可能需要调试 | 简单、可预测 |
 
-**经验法则**: 如果能一次完成且有把握，本地执行。否则委托给 Jules。
+**经验法则**：Jules 的单位成本是一次 PR 往返（创建 → 等待 → 合并 → 拉取），通常只在预计改动 ≥3 文件或 ≥50 行时才值得。能一次本地改完就本地改。
 
-## Prompt 编写指南
+## 前置条件
 
-好的 prompt 包含四个部分：
+1. `GOOGLE_JULES_API_KEY` 已设置（从 https://jules.google/settings 获取）。
+2. **本地改动已 push 到远程**。Jules 只读取远程分支，前置接口/类型/依赖没 push，Jules 就拿不到。
+3. CLI 默认用 `git remote get-url origin` 解析仓库，用**当前本地分支**作为 `startingBranch`。要指定其他分支用 `--branch <name>`。
+
+## Prompt 模板
 
 ```
 ## Context
-项目背景、技术栈、相关现有文件
+项目背景、技术栈、相关现有文件路径
 
 ## Task
-具体实现要求
+具体要实现什么
 
 ## Constraints
-- Only modify: [要修改的文件]
-- Do not modify: [不要修改的文件]
+- Only modify: <可修改的文件/目录>
+- Do not modify: <不要碰的文件>
 
 ## Criteria
-- [ ] 验收标准1
-- [ ] 验收标准2
+- [ ] 验收标准
 - [ ] 测试通过
 ```
 
-### 示例 Prompt
+`Constraints` 写明可修改范围是避免 Jules 跨模块越权修改的最有效手段。
+
+**简短示例**：
 
 ```
 ## Context
-Vue 3 + TypeScript 项目，使用 Pinia 状态管理。
-现有用户类型定义在 src/types/user.ts
+Vue 3 + TS 项目，类型在 src/types/user.ts
 
 ## Task
-在 src/modules/user/ 实现用户管理模块：
-- UserList.vue: 用户列表，支持分页和搜索
-- UserForm.vue: 用户表单，支持创建和编辑
-- UserDetail.vue: 用户详情页
-- api.ts: 用户相关 API 调用
-- store.ts: Pinia store
+在 src/modules/user/ 实现 UserList/UserForm/UserDetail + api.ts + Pinia store
 
 ## Constraints
 - Only modify: src/modules/user/**
-- Use existing types from src/types/user.ts
-- Follow existing code style in src/modules/
+- 复用 src/types/user.ts 的类型
 
 ## Criteria
-- [ ] 所有 CRUD 操作正常
-- [ ] 表单验证正确
-- [ ] 类型完整，无 any
+- [ ] CRUD 正常，无 any
 - [ ] npm run lint 通过
 ```
 
-## 工作流程
+## 执行流程
 
-### 并行任务
-
-多个独立模块可以同时开发：
-
-```
-1. 本地创建共享类型/接口
-2. git push 到远程（Jules 只能访问远程代码）
-3. 并行创建多个 Jules 会话
-4. 分别在后台等待每个会话完成
-5. 合并所有 PR
-6. 运行测试验证
-```
-
-### 顺序任务
-
-有依赖关系的任务需要顺序执行：
-
-```
-1. 执行第一个任务
-2. 如果是 Jules 任务，等待完成并合并 PR
-3. 继续下一个任务
-4. 重复直到完成
-```
-
-## 重要约束
-
-### Jules 只能访问远程主分支
-
-Jules 远程会话**只能获取远程分支的代码**。委托任务前必须：
-
-1. **本地修改已推送** - 接口、类型等前置工作必须先 push
-2. **代码已同步** - 确保远程分支是最新的
+`create → wait（后台）→ 按终止态分支处理 → 合并 PR → 本地验证`。
 
 ```bash
-# 检查并同步
-git status
-git add . && git commit -m "..." && git push
-```
+# 1. 同步远程
+git status && git push
 
-### 自包含的 Prompt
-
-每个 Jules 会话是独立的，prompt 必须包含所有必要信息：
-- 不要假设 Jules 知道之前的对话
-- 明确指出相关文件和依赖
-- 给出具体的文件路径
-
-## CLI 命令
-
-使用 `jules` CLI 操作 Jules。所有命令的最终结果以 JSON 输出到 stdout；`wait` 期间每 5 分钟在 stderr 打印一行状态。
-
-| 命令 | 功能 |
-|------|------|
-| `jules create --prompt <p> --title <t> [--source <s>] [--branch <b>]` | 创建会话 |
-| `jules list [--page-size <n>]` | 列出会话 |
-| `jules get <sessionId>` | 获取会话状态和 PR URL |
-| `jules wait <sessionId> [--timeout-minutes <n>]` | 阻塞等待会话到达终止态 |
-| `jules send <sessionId> <message>` | 发送消息给会话 |
-| `jules approve <sessionId>` | 批准会话计划 |
-| `jules delete <sessionId>` | 删除会话 |
-
-创建会话示例：
-
-```bash
+# 2. 创建会话；stdout JSON 中的 sessionId 字段即会话 ID
 jules create --prompt "$(cat prompt.md)" --title "实现用户管理模块"
+
+# 3. 后台等待（Bash 调用带 run_in_background: true）
+#    重定向到文件便于退出后读取最终 JSON
+jules wait <sessionId> --timeout-minutes 120 > /tmp/jules-<sessionId>.json
+
+# 4. 进程退出后：检查 exit code，读取 /tmp/jules-<sessionId>.json，
+#    按下表 state 字段分支处理；COMPLETED 时用 prUrl 合并
+gh pr ready <pr_url> && gh pr merge <pr_url> --merge && git pull
+
+# 5. 本地跑项目的测试/lint（如 npm test、npm run lint）验证合并后未破坏
 ```
 
-## 等待策略
+`jules wait` 每 5 分钟向 stderr 输出一行状态，进程在到达终止态或超时时退出。后台模式下 Claude 会在退出时收到通知，用 `BashOutput` 按 shell_id 读取，或直接 `Read` 上面重定向的文件。后台等待不占用上下文，也不阻塞其他工具调用。
 
-创建会话后，用 `Bash` 以 `run_in_background: true` 运行 `jules wait`：
-
-```
-Bash(command="jules wait <sessionId> --timeout-minutes 120", run_in_background: true)
-```
-
-CLI 每 5 分钟向 stderr 输出一行当前状态，进程在到达终止态（或超时）时退出。Claude 会在进程退出时自动收到通知，然后从 stdout 读取最终 JSON。
-
-**相对原 MCP `jules_wait_session` 的优势**：后台等待不占用 Claude 的上下文窗口，也不阻塞工具调用；同时支持同时跑多个会话的并行等待。
-
-进程退出后，根据 JSON 里的 `state` 字段决定下一步：
+## 终止态处理
 
 | 状态 | 操作 |
 |------|------|
-| `COMPLETED` | 获取 PR URL，使用 `gh pr merge` 合并 |
-| `FAILED` | 报告错误，终止流程 |
-| `AWAITING_PLAN_APPROVAL` | 运行 `jules approve <sessionId>` |
-| `AWAITING_USER_FEEDBACK` | 运行 `jules send <sessionId> "..."` |
+| `COMPLETED` | 合并前 `gh pr diff <prUrl>` 复核改动是否在 `Constraints` 范围内，再 `gh pr ready && gh pr merge --merge && git pull` |
+| `FAILED` | JSON 不含错误详情，打开 `url` 字段（Jules Web UI）看失败原因。错误局限在单文件/函数就 `jules send <sessionId> "<修正说明>"` 追加反馈重试；prompt 方向错了就 `jules delete` 后重写新建会话 |
+| `AWAITING_USER_FEEDBACK` | Jules 在主动提问，必须 `jules send <sessionId> "<回复>"` 否则不会继续；问题内容同样在 `url` 指向的 Web UI |
+| `AWAITING_PLAN_APPROVAL` | CLI 创建会话时未开启 `requirePlanApproval`，正常不会出现；若出现说明服务端触发人工审核，`jules approve <sessionId>` 批准 |
 
-### 并行等待
+## 并行会话
 
-多个会话各起一个后台 `jules wait`（每个单独的 `Bash` 调用，`run_in_background: true`），任何一个完成都会单独通知。
+多个独立模块可并发。每个会话**单独**一次 `Bash(run_in_background: true)` 调用 `jules wait <id> > /tmp/jules-<id>.json`，文件名即索引，任一完成都会单独通知。`--title` 取区分度高的描述，便于 stderr 日志定位。
 
-## 合并 PR
+## 常见陷阱
 
-会话完成后合并 PR（无论是否为 Draft PR，统一先 ready 再 merge）：
+- **本地改动没 push**：Jules 看到旧代码，上下文/类型对不上。创建会话前永远先 `git status`。
+- **Prompt 没写 Constraints**：Jules 可能动到无关文件。合并前用 `gh pr diff` 复核。
+- **没等 `wait` 退出就 merge**：PR 还是 draft 或仍在跑；以 `jules wait` 进程退出为准。
 
-```bash
-gh pr ready <pr_url> && gh pr merge <pr_url> --merge && git pull
-```
+## CLI 速查
+
+| 命令 | 功能 |
+|------|------|
+| `jules create --prompt <p> --title <t> [--branch <b>]` | 创建会话，JSON 含 `sessionId` |
+| `jules wait <sessionId> [--timeout-minutes <n>]` | 阻塞等待终止态（配 `run_in_background: true`） |
+| `jules get <sessionId>` | 查状态和 PR URL |
+
+其他命令（`list` / `delete` / `send` / `approve`）见 README。
