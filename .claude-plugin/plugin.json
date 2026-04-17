@@ -1,6 +1,6 @@
 {
   "name": "jules-workflow",
-  "description": "Use Jules for development with MCP tools",
+  "description": "Use Jules for development via the jules CLI",
   "version": "2.0.0",
   "author": {
     "name": "Coo"

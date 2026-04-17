@@ -13,7 +13,7 @@
         "source": "github",
         "repo": "xbghc/jules-workflow"
       },
-      "description": "Use Jules for development with MCP tools"
+      "description": "Use Jules for development via the jules CLI"
     }
   ]
 }
