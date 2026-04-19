@@ -1,101 +1,98 @@
-# Jules Workflow
+# jules-cli
 
-使用 Jules 进行开发的 Claude 插件。通过 `jules` CLI 提供 Jules API 操作，支持在后台等待任务完成并自动通知 Claude。
+Agent-friendly CLI for the [Google Jules](https://jules.google) API. Wraps session create/get/list/delete/send/approve plus a **blocking `wait`** that returns when the session reaches a terminal state — built so Claude Code (and other coding agents) can drive Jules in the background without tying up the conversation.
 
-## 安装
+Published as [`@xbghc/jules-cli`](https://www.npmjs.com/package/@xbghc/jules-cli).
 
-```bash
-/plugin marketplace add xbghc/jules-workflow
-/plugin install jules-workflow@jules-workflow
-```
+The paired Claude Code skill (workflow guidance, prompt templates, parallel-session patterns) lives in the `jules-workflow` plugin at [`ghm-plugins`](https://github.com/xbghc/claude-plugins).
 
-安装 CLI（推荐全局安装）：
+## Install
 
 ```bash
 npm i -g @xbghc/jules-cli
+# or per-invocation
+npx -y @xbghc/jules-cli <command>
 ```
 
-或者按需通过 `npx -y @xbghc/jules-cli <command>` 调用。
+Set `GOOGLE_JULES_API_KEY` (from https://jules.google/settings).
 
-需要设置环境变量 `GOOGLE_JULES_API_KEY`，从 https://jules.google/settings 获取。
+## API reference
 
-## 使用
+This CLI wraps the Jules REST API. For payload shapes, enum values (e.g. `automationMode`, session states), and endpoints not yet wrapped by the CLI, consult the official docs:
+
+**https://jules.google/docs/api/reference/**
+
+## Default behavior: no branch, no PR
+
+By default the CLI does **not** set `automationMode`, so Jules won't auto-open a PR. The recommended agent flow is to pull the unified-diff via `jules patch` and apply it locally — this way failed or rejected sessions leave **zero remote artifacts** (no stray branches, no PRs to close).
+
+Opt into Jules-side PR creation with `--auto-create-pr` on `create` if you want the traditional review flow.
+
+## Commands
+
+| Command | Purpose |
+|---------|---------|
+| `jules create --prompt <p> --title <t> [--source <s>] [--branch <b>] [--auto-create-pr]` | Create a session. Defaults `source` to `git remote get-url origin` and `branch` to the current local branch. Add `--auto-create-pr` to let Jules open a PR automatically. |
+| `jules list [--page-size <n>]` | List recent sessions. |
+| `jules get <sessionId>` | Fetch session state and PR URL (`prUrl` is `null` unless `--auto-create-pr` was used). |
+| `jules patch <sessionId>` | Aggregate every `gitPatch` from the session's activities. Returns `{ patches: [{ baseCommitId, unidiffPatch, suggestedCommitMessage, ... }] }`. Use `patches[-1]` for the final version. |
+| `jules activities <sessionId> [--page-size <n>] [--page-token <t>]` | Full activity timeline (plans, messages, progress, failures, artifacts). Use `sessionFailed.reason` for FAILED diagnostics and `agentMessaged.agentMessage` for `AWAITING_USER_FEEDBACK` questions. |
+| `jules sources [<sourceId>] [--page-size <n>] [--page-token <t>] [--filter <f>]` | List Jules-authorized GitHub repos (no arg) or get a single source. The resource `name` (e.g. `sources/github-xxx`) is what you pass to `create --source`. |
+| `jules delete <sessionId>` | Delete a session. |
+| `jules send <sessionId> <message>` | Send a message to a live session (required when state is `AWAITING_USER_FEEDBACK`). |
+| `jules approve <sessionId>` | Approve a session plan (`AWAITING_PLAN_APPROVAL`). |
+| `jules wait <sessionId> [--timeout-minutes <n>]` | Block until the session hits a terminal state. |
+
+All commands emit the final result as JSON on stdout. Errors go to stderr with a non-zero exit code. `wait` prints a one-line status to stderr every 5 minutes.
+
+## Why `wait` matters for agents
+
+Jules sessions commonly run 5–30+ minutes. If an agent polls `get` in a loop, every poll consumes a tool call and context. With `wait`, the agent runs it in the background:
+
+```
+# Claude Code pseudo-invocation
+Bash(run_in_background: true, command:
+  "jules wait <sessionId> --timeout-minutes 120 > /tmp/jules-<id>.json")
+```
+
+The agent gets notified when the process exits, reads the JSON, and branches on `state`. No polling, no blocked conversation, no context waste. Parallel sessions work the same way — one background `wait` per session, each writing to its own file.
+
+## Recommended flow (patch-driven)
 
 ```bash
-/jules-workflow:jules <任务描述>
+jules create --prompt "$(cat prompt.md)" --title "..."
+# → sessionId
+
+jules wait <sessionId> --timeout-minutes 120 > /tmp/jules-<id>.json    # run_in_background
+# … wait for exit …
+
+jules patch <sessionId> > /tmp/jules-<id>.patches.json
+
+# review then apply locally
+jq -r '.patches[-1].unidiffPatch' /tmp/jules-<id>.patches.json | git apply -
+git checkout -b jules/<short-desc>
+git add -A && git commit -m "$(jq -r '.patches[-1].suggestedCommitMessage' /tmp/jules-<id>.patches.json)"
+git push -u origin HEAD
+gh pr create --fill && gh pr merge --merge
 ```
 
-**示例:**
-```bash
-/jules-workflow:jules 实现用户管理模块，包含列表、表单、详情页
-```
+Rejected? `jules delete <sessionId>` — nothing to clean up remotely.
 
-## 组件
+## Terminal states
 
-| 组件 | 类型 | 功能 |
-|------|------|------|
-| `jules` | Skill | Jules 使用指南 + 入口命令 |
-| `@xbghc/jules-cli` | CLI | Jules API 操作命令 |
+| State | Meaning |
+|-------|---------|
+| `COMPLETED` | Patch is ready. Fetch via `jules patch <sessionId>`. |
+| `FAILED` | `jules activities <sessionId>` → pick `sessionFailed.reason` for the failure cause. |
+| `AWAITING_USER_FEEDBACK` | `jules activities <sessionId>` → latest `agentMessaged.agentMessage` has the question. Reply with `jules send`. |
+| `AWAITING_PLAN_APPROVAL` | Approval gate was triggered. Use `jules approve`. |
 
-## CLI 命令
-
-| 命令 | 功能 |
-|------|------|
-| `jules create --prompt <p> --title <t> [--source <s>] [--branch <b>]` | 创建会话 |
-| `jules list [--page-size <n>]` | 列出会话 |
-| `jules get <sessionId>` | 获取会话状态和 PR URL |
-| `jules delete <sessionId>` | 删除会话 |
-| `jules send <sessionId> <message>` | 发送消息给会话 |
-| `jules approve <sessionId>` | 批准会话计划 |
-| `jules wait <sessionId> [--timeout-minutes <n>]` | 阻塞等待会话到达终止态 |
-
-所有命令的最终结果以 JSON 格式输出到 stdout。`wait` 每 5 分钟向 stderr 输出一行状态，便于日志与流式观察。
-
-### 后台等待（关键能力）
-
-让 Claude 用 `Bash(run_in_background: true)` 跑：
-
-```
-jules wait <sessionId> --timeout-minutes 120
-```
-
-任务到达终止态时，进程退出，Claude 自动收到通知并读取最终 JSON 决定下一步。这种模式不占用上下文窗口，也不会把 Claude 会话阻塞在一次工具调用上。
-
-合并 PR：
+## Build & publish
 
 ```bash
-gh pr ready <pr_url> && gh pr merge <pr_url> --merge && git pull
-```
-
-## 工作流程
-
-```
-1. 分析任务 → 判断是否适合 Jules
-2. 准备代码 → git push 到远程
-3. 创建会话 → jules create
-4. 后台等待 → jules wait（run_in_background）
-5. 合并 PR  → gh pr merge <url> --merge && git pull
-6. 验证     → 运行测试
-```
-
-## 项目结构
-
-```
-jules-workflow/
-├── .claude-plugin/
-│   ├── plugin.json       # 插件配置
-│   └── marketplace.json  # 市场配置
-├── skills/
-│   └── jules/
-│       └── SKILL.md      # 使用指南 + 命令
-├── cli/
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── src/
-│       ├── index.ts      # CLI dispatcher
-│       ├── handlers.ts   # 命令处理器
-│       └── api.ts        # Jules API 客户端
-└── README.md
+make build                # npm install + tsc
+make publish              # npm publish
+make publish OTP=123456   # with 2FA
 ```
 
 ## License

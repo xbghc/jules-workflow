@@ -22,8 +22,9 @@ export async function handleCreateSession(args: {
   title: string;
   source?: string;
   branch?: string;
+  autoCreatePr?: boolean;
 }) {
-  const { prompt, title, source, branch } = args;
+  const { prompt, title, source, branch, autoCreatePr } = args;
 
   let repoSource = source;
   let repoBranch = branch;
@@ -34,7 +35,7 @@ export async function handleCreateSession(args: {
     repoBranch = repoBranch || repoInfo.branch;
   }
 
-  const result = await julesRequest("/sessions", "POST", {
+  const body: Record<string, unknown> = {
     prompt,
     title,
     sourceContext: {
@@ -43,8 +44,12 @@ export async function handleCreateSession(args: {
         startingBranch: repoBranch,
       },
     },
-    automationMode: "AUTO_CREATE_PR",
-  });
+  };
+  if (autoCreatePr) {
+    body.automationMode = "AUTO_CREATE_PR";
+  }
+
+  const result = await julesRequest("/sessions", "POST", body);
 
   const session = result as { id: string; name: string; url: string };
   return {
@@ -53,6 +58,93 @@ export async function handleCreateSession(args: {
     url: session.url,
     message: "Session created successfully",
   };
+}
+
+export async function handleListActivities(args: {
+  sessionId: string;
+  pageSize?: number;
+  pageToken?: string;
+}) {
+  const { sessionId, pageSize, pageToken } = args;
+  const params = new URLSearchParams();
+  if (pageSize !== undefined) params.set("pageSize", String(pageSize));
+  if (pageToken) params.set("pageToken", pageToken);
+  const qs = params.toString();
+  return julesRequest(
+    `/sessions/${sessionId}/activities${qs ? `?${qs}` : ""}`,
+  );
+}
+
+export async function handleListSources(args: {
+  pageSize?: number;
+  pageToken?: string;
+  filter?: string;
+}) {
+  const { pageSize, pageToken, filter } = args;
+  const params = new URLSearchParams();
+  if (pageSize !== undefined) params.set("pageSize", String(pageSize));
+  if (pageToken) params.set("pageToken", pageToken);
+  if (filter) params.set("filter", filter);
+  const qs = params.toString();
+  return julesRequest(`/sources${qs ? `?${qs}` : ""}`);
+}
+
+export async function handleGetSource(args: { sourceId: string }) {
+  const { sourceId } = args;
+  const id = sourceId.startsWith("sources/")
+    ? sourceId.slice("sources/".length)
+    : sourceId;
+  return julesRequest(`/sources/${id}`);
+}
+
+export async function handleGetPatch(args: { sessionId: string }) {
+  const { sessionId } = args;
+  const result = await julesRequest(
+    `/sessions/${sessionId}/activities?pageSize=100`,
+  );
+  const data = result as {
+    activities?: Array<{
+      id: string;
+      createTime?: string;
+      artifacts?: Array<{
+        changeSet?: {
+          source?: string;
+          gitPatch?: {
+            baseCommitId?: string;
+            unidiffPatch?: string;
+            suggestedCommitMessage?: string;
+          };
+        };
+      }>;
+    }>;
+  };
+
+  const patches: Array<{
+    activityId: string;
+    createTime: string | null;
+    source: string | null;
+    baseCommitId: string | null;
+    unidiffPatch: string;
+    suggestedCommitMessage: string | null;
+  }> = [];
+
+  for (const activity of data.activities || []) {
+    for (const artifact of activity.artifacts || []) {
+      const patch = artifact.changeSet?.gitPatch;
+      if (patch?.unidiffPatch) {
+        patches.push({
+          activityId: activity.id,
+          createTime: activity.createTime ?? null,
+          source: artifact.changeSet?.source ?? null,
+          baseCommitId: patch.baseCommitId ?? null,
+          unidiffPatch: patch.unidiffPatch,
+          suggestedCommitMessage: patch.suggestedCommitMessage ?? null,
+        });
+      }
+    }
+  }
+
+  return { sessionId, patches };
 }
 
 export async function handleListSessions(args: { pageSize?: number }) {
